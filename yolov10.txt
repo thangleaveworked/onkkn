@@ -294,7 +294,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-# pip install paho-mqtt
+# pip install paho-mqtt==1.6.1
 # pip install mysql-connector-python
 
 
