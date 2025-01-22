@@ -1,0 +1,128 @@
+from ultralytics import YOLO
+import cv2
+import paho.mqtt.client as mqtt
+import mysql.connector
+from datetime import datetime
+
+
+# Kết nối với MySQL
+def connect_to_mysql():
+    return mysql.connector.connect(
+        host="localhost",  # Thay bằng địa chỉ host của bạn
+        user="root",  # Thay bằng user MySQL của bạn
+        password="",  # Thay bằng password của bạn
+        database="iot4"  # Tên database MySQL của bạn
+    )
+
+
+# Hàm lưu tin nhắn vào MySQL
+def save_message_to_db(topic, message):
+    try:
+        conn = connect_to_mysql()
+        cursor = conn.cursor()
+        query = "INSERT INTO messages (topic, message, received_at) VALUES (%s, %s, %s)"
+        cursor.execute(query, (topic, message, datetime.now()))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"Message saved to DB: Topic={topic}, Message={message}")
+    except Exception as e:
+        print(f"Error saving message to DB: {e}")
+
+
+# Hàm truy vấn thông tin từ MySQL
+def select_name_type(message):
+    try:
+        conn = connect_to_mysql()
+
+        # Sử dụng cursor kiểu dictionary
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT * FROM traffic_signs, sign_type 
+        WHERE sign_type.id_sign_type = traffic_signs.id_sign_type AND name = %s
+        """
+        cursor.execute(query, (message,))
+        result = cursor.fetchone()
+
+        if result:
+            # Truy cập các giá trị qua tên cột
+            name_type = result['name_type']  # Tên cột trong bảng
+            description = result['description']  # Tên cột khác
+            print(f"Value of 'name_type': {name_type}")
+            print(f"Value of 'description': {description}")
+            return name_type
+        else:
+            print("No matching record found.")
+            return None
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+# Hàm phát hiện hình ảnh
+def detect_image(image_path, model_path="best.pt"):
+    # Load model YOLO
+    model = YOLO(model_path)
+
+    # Đọc ảnh
+    image = cv2.imread(image_path)
+    if image is None:
+        print("Không thể đọc ảnh. Kiểm tra đường dẫn!")
+        return None
+
+    # Phát hiện đối tượng
+    results = model.predict(source=image, save=False, conf=0.25)
+
+    detected_names = []
+    for result in results[0].boxes:
+        cls = result.cls.cpu().numpy()  # Lớp đối tượng
+        label = model.names[int(cls)]  # Tên lớp
+        detected_names.append(label)
+
+    print(f"Detected objects: {detected_names}")
+    return detected_names
+
+
+# Hàm gửi tin nhắn qua MQTT
+def publish_message(broker, port, topic, message):
+    try:
+        client = mqtt.Client("MQTT_Python_Client")
+        client.connect(broker, port)
+        client.publish(topic, message)
+        print(f"Message published: Topic={topic}, Message={message}")
+    except Exception as e:
+        print(f"Error publishing message: {e}")
+
+
+# Hàm chính
+def main(image_path, model_path, broker, port, topic):
+    # Phát hiện đối tượng từ ảnh
+    detected_objects = detect_image(image_path, model_path)
+    if not detected_objects:
+        print("No objects detected or invalid image.")
+        return
+
+    # Lấy thông tin từ cơ sở dữ liệu và gửi qua MQTT
+    for obj in detected_objects:
+        name_type = select_name_type(obj)
+        if name_type:
+            publish_message(broker, port, topic, name_type)
+            # save_message_to_db(topic, name_type)
+
+
+if __name__ == "__main__":
+    # Cung cấp đường dẫn ảnh, mô hình, và thông tin MQTT
+    IMAGE_PATH = "000001_jpg.rf.4f8eac6747a989e40bff9c86bc5d97be.jpg"  # Thay bằng đường dẫn ảnh thực tế
+    MODEL_PATH = "best.pt"  # Thay bằng đường dẫn mô hình YOLOv10
+    MQTT_BROKER = "test.mosquitto.org"  # Địa chỉ MQTT broker
+    MQTT_PORT = 1883
+    MQTT_TOPIC = "21004171/output"  # Thay bằng topic bạn muốn gửi
+
+    main(IMAGE_PATH, MODEL_PATH, MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+
+# Cài đặt các thư viện cần thiết nếu chưa có
+# pip install ultralytics mysql-connector-python opencv-python
+# pip install paho-mqtt==1.6.1
