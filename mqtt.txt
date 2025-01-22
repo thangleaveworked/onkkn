@@ -225,22 +225,27 @@ def save_message_to_db(topic, message):
         print(f"Error saving message to DB: {e}")
 
 
+# Hàm truy vấn thông tin từ MySQL
 def select_name_type(message):
     try:
         conn = connect_to_mysql()
-        cursor = conn.cursor()
 
-        # Truy vấn chỉ trả về một dòng
-        query = "SELECT * FROM traffic_signs, sign_type WHERE sign_type.id_sign_type = traffic_signs.id_sign_type and name = %s"
+        # Sử dụng cursor kiểu dictionary
+        cursor = conn.cursor(dictionary=True)
+
+        query = """
+        SELECT * FROM traffic_signs, sign_type 
+        WHERE sign_type.id_sign_type = traffic_signs.id_sign_type AND name = %s
+        """
         cursor.execute(query, (message,))
-        result = cursor.fetchone()  # Lấy một dòng duy nhất
+        result = cursor.fetchone()
 
         if result:
-            for i in range(len(result)):
-                print(f"Value of column {i}: {result[i]}")
-            # Cột `name_type` là giá trị đầu tiên trong dòng trả về
-            name_type = result[11]
+            # Truy cập các giá trị qua tên cột
+            name_type = result['name_type']  # Tên cột trong bảng
+            description = result['description']  # Tên cột khác
             print(f"Value of 'name_type': {name_type}")
+            print(f"Value of 'description': {description}")
             return name_type
         else:
             print("No matching record found.")
@@ -250,6 +255,7 @@ def select_name_type(message):
         conn.close()
     except Exception as e:
         print(f"Error: {e}")
+
 
 
 # Callback khi kết nối MQTT thành công
