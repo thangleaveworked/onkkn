@@ -1,0 +1,8 @@
+
+# Bỏ qua tệp chứa bí mật
+*.json
+*.env
+*.pyc
+
+# Bỏ qua các thư mục tạm
+__pycache__/

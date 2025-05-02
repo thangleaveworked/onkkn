@@ -1,0 +1,7 @@
+FROM ollama/ollama
+
+# Tải mô hình nomic-embed-text khi build image
+RUN ollama pull nomic-embed-text
+
+# Chạy server
+CMD ["ollama", "serve"]

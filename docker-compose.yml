@@ -1,0 +1,20 @@
+version: '3.8'
+services:
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./temp_files:/app/temp_files
+      - ./extracted_texts:/app/extracted_texts
+      - ./faiss_data:/app/faiss_data
+    ports:
+      - "5000:5000"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
